@@ -184,7 +184,7 @@
 		:init-terminals init-terminals
 		:print-frequency print-frequency
 		:delete-duplicates (if (= old-population-size (length #1#)) nil t))))
-      (:save (with-open-file (out file :direction :output :if-exists :overwrite)
+      (:save (with-open-file (out file :direction :output :if-exists :supersede)
 	       (prin1 current-population out)
 	       (prin1 mating-pool out)
 	       (prin1 terminals out)
