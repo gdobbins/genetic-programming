@@ -45,6 +45,37 @@
 		     (setf rep nil)))))
     rep))
 
+(defun tree-depth (tree &optional (depth 0) (max-depth 0) (ret nil))
+  (declare (type (or cons null) tree ret) (type fixnum depth max-depth))
+  (if tree
+      (if (consp (car tree))
+	  (tree-depth (cdar tree) (1+ depth) (max max-depth (1+ depth)) (cons (list depth (cdr tree)) ret))
+	  (tree-depth (cdr tree) depth max-depth ret))
+      (if ret
+	  (tree-depth (second (first ret)) (first (first ret)) max-depth (rest ret))
+	  max-depth)))
+
+(defun tree-atom-size (tree &optional (functions nil) (atoms 0) (ret nil))
+  "Counts the number of atoms in a tree. Does not count () expressions as atoms, skips the function slot of the list, i.e. the first position of every list if functions is nil. Subtract one if gene is not wrapped in a list."
+  (declare (type (or cons null) tree ret) (type boolean functions) (type fixnum atoms))
+  (if tree
+      (if (consp (car tree))
+	  (tree-atom-size (cdar tree) functions (if functions (1+ atoms) atoms) (cons (cdr tree) ret))
+	  (tree-atom-size (cdr tree) functions (1+ atoms) ret))
+      (if ret
+	  (tree-atom-size (first ret) functions atoms (rest ret))
+	  atoms)))
+
+(defun node-list (gene &optional (acc nil) (ret nil))
+  (declare (type (or cons null) gene acc ret))
+  (if gene
+      (if (consp (car gene))
+	  (node-list (cdar gene) (cons gene acc) (cons (cdr gene) ret))
+	  (node-list (cdr gene) (cons gene acc) ret))
+      (if ret
+	  (node-list (first ret) acc (rest ret))
+	  acc)))
+
 (defgeneric create-random-gene (functions terminals &optional max-depth min-depth))
 
 (defmethod create-random-gene ((functions functions) (terminals cons) &optional (max-depth 6) (min-depth 2))
@@ -101,7 +132,7 @@
     (labels ((cmp-helper (gene-list fitness-list selector-number)
 	       (if (> (car fitness-list) selector-number)
 		   (car gene-list)
-		   (cmp-helper (cdr gene-list) (cdr fitness-list) (- selector-number (car fitness-list))))))
+		   (cmp-helper (or (cdr gene-list) gene-list) (or (cdr fitness-list) fitness-list) (- selector-number (or (car fitness-list) 1))))))
       (make-population :number-of-genes num-genes :best-gene-so-far (population-best-gene-so-far current-population) :best-gene-so-far-fitness (population-best-gene-so-far-fitness current-population)
 		       :average-fitness (population-average-fitness current-population)
 		       :maximum-fitness (population-maximum-fitness current-population)
@@ -109,15 +140,21 @@
 		       :gene-fitness-list (population-gene-fitness-list current-population)
 		       :genes (loop for i from 1 to num-genes collect (copy-tree (cmp-helper (population-genes current-population) (population-gene-adjusted-fitness-list current-population) (random total-fitness))))))))
 
-(defun breed-mating-pool (mating-pool functions terminals &optional (breed-percentage 0.9) (mutate-percentage .001))
+(defun breed-mating-pool (mating-pool functions terminals &optional (breed-percentage 0.9) (mutate-percentage .01) (max-depth 40))
   (let ((num-breeding-pairs (round (* (population-number-of-genes mating-pool) breed-percentage))))
     (labels ((bmp-helper (gene-list functions terminals pairs-remaining mutate-percentage)
 	       (if (<= 2 pairs-remaining)
-		   (tagbody (rotatef (car (random-elt (node-list (first gene-list)))) (car (random-elt (node-list (second gene-list)))))
-		      (bmp-helper (cddr gene-list) functions terminals (- pairs-remaining 2) mutate-percentage))
+		   (let ((sub-one (random-elt (node-list (first gene-list)))) (sub-two (random-elt (node-list (second gene-list)))))
+		     (rotatef (car sub-one) (car sub-two))
+		     (if (or (< max-depth (tree-depth (first gene-list))) (< max-depth (tree-depth (second gene-list))))
+			 (rotatef (car sub-one) (car sub-two)))
+		     (bmp-helper (cddr gene-list) functions terminals (- pairs-remaining 2) mutate-percentage))
 		   (let ((n (length gene-list)))
 		     (dotimes (i (round (+ (* n mutate-percentage (- 1 mutate-percentage) (gaussian-random)) (* n mutate-percentage))))
-		       (setf (car (random-elt (node-list (random-elt gene-list)))) (create-random-gene functions terminals 3 1)))))))
+		       (let* ((sub-gene (random-elt gene-list)) (sub-one (random-elt (node-list sub-gene))) (sub-two (create-random-gene functions terminals -1 1)))
+			 (rotatef (car sub-one) sub-two)
+			 (if (< max-depth (tree-depth sub-gene))
+			     (rotatef (car sub-one) sub-two))))))))
       (bmp-helper (population-genes mating-pool) functions terminals num-breeding-pairs mutate-percentage))
     mating-pool))
 
@@ -208,12 +245,4 @@
       (:print-freq print-freq)
       (:current-population current-population))))
 
-(defun node-list (gene &optional (acc nil) (ret nil))
-  (declare (type (or cons null) gene acc ret))
-  (if gene
-      (if (consp (car gene))
-	  (node-list (cdar gene) (cons gene acc) (cons (cdr gene) ret))
-	  (node-list (cdr gene) (cons gene acc) ret))
-      (if ret
-	  (node-list (first ret) acc (rest ret))
-	  acc)))
+
