@@ -25,7 +25,8 @@
 
 (defstruct functions
   (function-list nil :type (or cons null))
-  (arg-num-list nil :type (or cons null)))
+  (arg-num-list nil :type (or cons null))
+  (base-gene-copy-number 1 :type fixnum))
 
 (defun tree-replace (tree find max-depth min-depth replace &rest vars)
   (loop for i in tree collect
@@ -88,11 +89,15 @@
       (do () ((tree-find-not gene :sexp) gene)
 	(setf gene (tree-replace gene :sexp max-depth min-depth (lambda (x y z) (create-new-sexp (random x) y z)) len functions terminals))))))
 
+(defun create-random-full-gene (functions terminals &optional (max-depth 6) (min-depth 2))
+  (loop for i from 1 to (functions-base-gene-copy-number functions) collect
+       (create-random-gene functions terminals max-depth min-depth)))
+
 (defun initialize-population (current-population functions terminals generation)
   (declare (type population current-population) (type cons terminals))
   (assert (= 0 generation))
   (if (< (length #1=(population-genes current-population)) #2=(population-number-of-genes current-population))
-      (tagbody (setf (population-genes current-population) (append (list (list (create-random-gene functions terminals))) (population-genes current-population))) (initialize-population current-population functions terminals generation))
+      (tagbody (setf (population-genes current-population) (append (list (create-random-full-gene functions terminals)) (population-genes current-population))) (initialize-population current-population functions terminals generation))
 ;      (initialize-population (make-population :genes (append (list (create-random-gene functions terminals)) #1#) :number-of-genes #2#) functions terminals generation)
       current-population))
 
@@ -132,7 +137,7 @@
     (labels ((cmp-helper (gene-list fitness-list selector-number)
 	       (if (> (car fitness-list) selector-number)
 		   (car gene-list)
-		   (cmp-helper (or (cdr gene-list) gene-list) (or (cdr fitness-list) fitness-list) (- selector-number (or (car fitness-list) 1))))))
+		   (cmp-helper (or (cdr gene-list) gene-list) (or (cdr fitness-list) fitness-list) (- selector-number (if (cdr fitness-list) (car fitness-list) 1))))))
       (make-population :number-of-genes num-genes :best-gene-so-far (population-best-gene-so-far current-population) :best-gene-so-far-fitness (population-best-gene-so-far-fitness current-population)
 		       :average-fitness (population-average-fitness current-population)
 		       :maximum-fitness (population-maximum-fitness current-population)
@@ -140,7 +145,7 @@
 		       :gene-fitness-list (population-gene-fitness-list current-population)
 		       :genes (loop for i from 1 to num-genes collect (copy-tree (cmp-helper (population-genes current-population) (population-gene-adjusted-fitness-list current-population) (random total-fitness))))))))
 
-(defun breed-mating-pool (mating-pool functions terminals &optional (breed-percentage 0.9) (mutate-percentage .01) (max-depth 50))
+(defun breed-mating-pool (mating-pool functions terminals &optional (breed-percentage 0.9) (mutate-percentage .01) (max-depth 25))
   (let ((num-breeding-pairs (round (* (population-number-of-genes mating-pool) breed-percentage))))
     (labels ((bmp-helper (gene-list functions terminals pairs-remaining mutate-percentage)
 	       (if (<= 2 pairs-remaining)
@@ -195,7 +200,6 @@
        (update-history-report current-population generation print-freq)
        (setf generation (1+ generation)))
       (:next-generations
-       (setf fitness-function fit-function)
        (dotimes (i generations)
 	 (update-population-fitness current-population fitness-function)
 	 (setf mating-pool (create-mating-pool current-population))
