@@ -5,7 +5,7 @@
   (ql:quickload :lparallel))
 (defpackage :genetic-programming
   (:use :common-lisp :alexandria :lparallel)
-  (:export :gene-prog :make-population :population-genes :population-gene-fitness-list :population-gene-adjusted-fitness-list :population-number-of-genes :population-average-fitness :population-maximum-fitness :population-minimum-fitness :population-best-gene-so-far :population-best-gene-so-far-fitness :make-functions :functions-function-list :functions-arg-num-list))
+  (:export :gene-prog :make-population :population-genes :population-gene-fitness-list :population-gene-adjusted-fitness-list :population-number-of-genes :population-average-fitness :population-maximum-fitness :population-minimum-fitness :population-best-gene-so-far :population-best-gene-so-far-fitness :make-functions :functions-function-list :functions-arg-num-list :simulated-annealing))
 (in-package :genetic-programming)
 
 ;(defclass gene ()
@@ -172,19 +172,20 @@
 
 ;		     (loop for i from 1 to (population-number-of-genes current-population) collect (copy-tree (cmp-helper (population-genes current-population) (population-gene-adjusted-fitness-list current-population) (random total-fitness)))))))
 
-(defun bmp-helper (gene-list functions terminals pairs-remaining mutate-percentage &optional (max-depth 25))
+(defun bmp-helper (gene-list functions terminals pairs-remaining mutate-percentage &optional (max-depth 50))
   (declare (type fixnum pairs-remaining max-depth) (type cons gene-list terminals) (type single-float mutate-percentage)
 	   (type functions functions))
   (if (<= 2 pairs-remaining)
       (plet ((sub-one (random-elt (node-list (first gene-list)))) (sub-two (random-elt (node-list (second gene-list)))))
 	(declare (type cons sub-one sub-two))
 	(rotatef (car sub-one) (car sub-two))
-	(if (< max-depth (the fixnum (tree-depth (first gene-list))))
-	    (if #1=(< max-depth (the fixnum (tree-depth (second gene-list))))
-		(rotatef (car sub-one) (car sub-two))
-		(setf (car sub-one) (car sub-two)))
-	    (if #1#
-		(setf (car sub-two) (car sub-one))))
+	(plet ((tree-depth-of-second-gene-list (tree-depth (second gene-list))))
+	      (if (< max-depth (the fixnum (tree-depth (first gene-list))))
+		  (if #1=(< max-depth (the fixnum tree-depth-of-second-gene-list))
+		      (rotatef (car sub-one) (car sub-two))
+		      (setf (car sub-one) (car sub-two)))
+		  (if #1#
+		      (setf (car sub-two) (car sub-one)))))
 	(bmp-helper (cddr gene-list) functions terminals (- pairs-remaining 2) mutate-percentage max-depth))
       (let ((n (length gene-list)))
 	(declare (type fixnum n))
@@ -293,4 +294,15 @@
       (:print-freq print-freq)
       (:current-population current-population))))
 
+(defun boltzmann (e-i e-i+1 temp &optional (k 1.0d0))
+  (declare (type real e-i e-i+1) (type double-float temp k))
+  (exp (the double-float (/ (abs (- e-i e-i+1)) -1 k temp))))
 
+(defun simulated-annealing (initial-value initial-temperature energy-function step-function &optional (min-t 2.0d-6) (mu-T 1.003d0) (k 1.0d0))
+  (declare (type function energy-function step-function) (type double-float initial-temperature min-t mu-t k))
+  (let ((value initial-value) (value-energy (funcall energy-function initial-value)))
+    (do* ((candidate-value (funcall step-function value) (funcall step-function value)) (candidate-value-energy (funcall energy-function candidate-value) (funcall energy-function candidate-value)) (temp initial-temperature (/ temp mu-T))) ((< temp min-t) (if (< candidate-value-energy value-energy) (values candidate-value candidate-value-energy) (values value value-energy)))
+      (declare (type double-float temp))
+      (if (or (< candidate-value-energy value-energy) (< (random 1.0d0) (the double-float (boltzmann value-energy candidate-value-energy temp k))))
+	  (setf value candidate-value value-energy candidate-value-energy)))))
+	      
