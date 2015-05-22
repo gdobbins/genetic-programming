@@ -5,7 +5,7 @@
   (ql:quickload :lparallel))
 (defpackage :genetic-programming
   (:use :common-lisp :alexandria :lparallel)
-  (:export :gene-prog :make-population :population-genes :population-gene-fitness-list :population-gene-adjusted-fitness-list :population-number-of-genes :population-average-fitness :population-maximum-fitness :population-minimum-fitness :population-best-gene-so-far :population-best-gene-so-far-fitness :make-functions :functions-function-list :functions-arg-num-list :simulated-annealing))
+  (:export :gene-prog :make-population :population-genes :population-gene-fitness-list :population-gene-adjusted-fitness-list :population-number-of-genes :population-average-fitness :population-maximum-fitness :population-minimum-fitness :population-best-gene-so-far :population-best-gene-so-far-fitness :make-functions :functions-function-list :functions-arg-num-list :simulated-annealing :genetic-algorithm))
 (in-package :genetic-programming)
 
 ;(defclass gene ()
@@ -121,6 +121,17 @@
 ;      (initialize-population (make-population :genes (append (list (create-random-gene functions terminals)) #1#) :number-of-genes #2#) functions terminals generation)
       current-population))
 
+(defun pre-test-population (current-population functions terminals pt-function)
+  (declare (type population current-population) (type cons terminals) (type functions functions) (type function pt-function))
+  (dolist (i (population-genes current-population))
+    (funcall pt-function (nth 0 i) 0 (the boolean t))
+    (dotimes (j (functions-base-gene-copy-number functions))
+      (do () ((the boolean (funcall pt-function (nth j i) j (the boolean nil))))
+	(let ((temp (create-random-gene functions terminals)))
+	  (declare (type cons temp))
+	  (rplaca (nth j i) (car temp))
+	  (rplacd (nth j i) (cdr temp)))))))
+
 (defun adjust-to-linear-fitness (fitness-list max-fit min-fit avg-fit fit-list-length &optional (max-fit-multiplier 2))
   (declare (type cons fitness-list) (type number max-fit min-fit avg-fit) (type fixnum fit-list-length max-fit-multiplier))
   (if (= max-fit avg-fit) (make-list fit-list-length :initial-element 1)
@@ -215,6 +226,7 @@
   (declare (type fixnum generation print-freq) (type (or null cons) terminals) (type function fitness-function) (type functions functions) (type population current-population mating-pool))
   (defun gene-prog (&key (operation :next-generation) (generations 50);for progressing to the next evolution
 		      (delete-duplicates nil) (population-size 100) (init-functions functions) (init-terminals terminals) (fit-function fitness-function) (print-frequency print-freq);for during initialization, whether to check for duplicates
+		      (pt-function nil)
 		      (file nil)) ;for saving and loading
     (declare (type fixnum generations population-size print-frequency) (type keyword operation) (type boolean delete-duplicates) (type functions init-functions) (type cons init-terminals) (type function fit-function) (type (or null (simple-array character (*)))))
     (case operation
@@ -256,6 +268,8 @@
 				      :init-functions init-functions
 				      :init-terminals init-terminals
 				      :delete-duplicates t)))
+       (:pre-test
+	(pre-test-population current-population functions terminals pt-function))
       (:enlarge-population
        (setf (population-number-of-genes current-population) population-size
 	     (population-number-of-genes mating-pool) population-size)
@@ -307,8 +321,8 @@
 	  (setf value candidate-value value-energy candidate-value-energy)))))
 
 (export 'genetic-algorithm)
-(defun genetic-algorithm (terminal-list gene-length population-size generations fitness-function &key (mutate 0.1) (verbose nil) (result :default))
-  (declare (type cons terminal-list) (type function fitness-function) (type fixnum gene-length population-size generations) (type keyword result) (type boolean verbose))
+(defun genetic-algorithm (terminal-list gene-length population-size generations fitness-function &key (mutate 0.01) (verbose nil) (result :default) (greedy nil))
+  (declare (type cons terminal-list) (type function fitness-function) (type fixnum gene-length population-size generations) (type keyword result) (type boolean verbose greedy))
   (labels ((gene-maker (terminal-list gene-length &optional (acc nil) (len (length acc)))
 	     (declare (type cons terminal-list) (type (or null cons) acc) (type fixnum gene-length len))
 	     (if (= len gene-length)
@@ -322,14 +336,19 @@
 	   (cmg-helper (current-genes fitness-list fitness-residual)
 	     (declare (type cons current-genes fitness-list) (type real fitness-residual))
 	     (if (< fitness-residual (the real (first fitness-list)))
-		 (first current-genes)
+		 (copy-list (first current-genes))
 		 (if (rest current-genes)
 		     (cmg-helper (rest current-genes) (rest fitness-list) (- fitness-residual (the real (first fitness-list))))
 		     (cmg-helper current-genes fitness-list (- fitness-residual 1)))))
 	   (create-mating-genes (current-genes fitness-list)
 	     (declare (type cons current-genes fitness-list))
-	     (let ((total-fitness (apply #'+ fitness-list)))
-	       (loop for i from 1 to population-size collect (cmg-helper current-genes fitness-list (random total-fitness)))))
+	     (if greedy
+		 (append #4=(list (copy-list (nth (position (apply #'max fitness-list) fitness-list) current-genes)))
+			 #4# #4#
+			 (let ((total-fitness (apply #'+ fitness-list)))
+			   (loop for i from 1 to (- population-size 4) collect (cmg-helper current-genes fitness-list (random total-fitness)))) #4#)
+		 (let ((total-fitness (apply #'+ fitness-list)))
+			   (loop for i from 1 to population-size collect (cmg-helper current-genes fitness-list (random total-fitness))))))
 	   (breed-mating-genes (mating-genes &optional (fin mating-genes))
 	     (declare (type (or cons null) mating-genes fin))
 	     (if (second mating-genes)
@@ -343,7 +362,7 @@
 	  (mating-genes (make-list population-size)))
       (declare (type cons current-genes current-genes-fitness current-genes-adjusted-fitness mating-genes))
       (dotimes (i generations)
-	#1=(map-into current-genes-fitness fitness-function current-genes)
+	#1=(pmap-into current-genes-fitness fitness-function :size population-size current-genes)
 	(setf current-genes-adjusted-fitness (adjust-to-linear-fitness current-genes-fitness
 								      (apply #'max current-genes-fitness)
 								      (apply #'min current-genes-fitness)
@@ -355,7 +374,7 @@
 		    (nth (position #2=(apply #'max current-genes-fitness) current-genes-fitness) current-genes)
 		    #2#))
 	(setf current-genes (breed-mating-genes mating-genes))
-	(map-into current-genes (lambda (x) (if (zerop (random (round (* mutate population-size))))
+	(pmap-into current-genes (lambda (x) (if (zerop (random (round (* mutate population-size))))
 						(let ((place (random gene-length)))
 						  (append (subseq x 0 place) (list (random-elt terminal-list)) (subseq x (1+ place))))
 						x)) current-genes))
