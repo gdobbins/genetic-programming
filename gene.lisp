@@ -1,8 +1,8 @@
 (in-package :cl-user)
-(eval-when (:compile-toplevel :load-toplevel :execute)
+;(eval-when (:compile-toplevel :load-toplevel :execute)
   ;(ql:quickload :series)
-  (ql:quickload :alexandria)
-  (ql:quickload :lparallel))
+ ; (ql:quickload :alexandria)
+  ;(ql:quickload :lparallel))
 (defpackage :genetic-programming
   (:use :common-lisp :alexandria :lparallel)
   (:export :gene-prog :make-population :population-genes :population-gene-fitness-list :population-gene-adjusted-fitness-list :population-number-of-genes :population-average-fitness :population-maximum-fitness :population-minimum-fitness :population-best-gene-so-far :population-best-gene-so-far-fitness :make-functions :functions-function-list :functions-arg-num-list :simulated-annealing :genetic-algorithm))
@@ -22,7 +22,7 @@
   (genes nil :type (or cons null))
   (gene-fitness-list nil :type (or cons null))
   (gene-adjusted-fitness-list nil :type (or cons null))
-  (number-of-genes 0 :type fixnum)
+  (number-of-genes 0 :type (and fixnum (real 0)))
   (average-fitness 0 :type number)
   (maximum-fitness 0 :type number)
   (minimum-fitness 0 :type number)
@@ -32,7 +32,7 @@
 (defstruct functions
   (function-list nil :type (or cons null))
   (arg-num-list nil :type (or cons null))
-  (base-gene-copy-number 1 :type fixnum))
+  (base-gene-copy-number 1 :type (and fixnum (real 1))))
 
 ;(defmacro concurrent-lists-do (lists &body body)
 ;  (let* ((syms (loop for i in lists collect (gensym))) (len (length syms)))
@@ -42,7 +42,7 @@
 ;       ,@body))))
 
 (defun tree-replace (tree find max-depth min-depth replace &rest vars)
-  (declare (type cons tree) (type fixnum max-depth min-depth))
+  (declare (type cons tree) (type fixnum max-depth min-depth) (type (or null cons) vars) (type function replace))
   (loop for i in tree collect
        (if (and (consp i) (<= 0 max-depth) (not #1=(find-if (lambda (x) (equalp i x)) (last vars))))
 	   (apply 'tree-replace i find (1- max-depth) (1- min-depth) replace vars)
@@ -63,7 +63,7 @@
     rep))
 
 (defun tree-depth (tree &optional (depth 0) (max-depth 0) (ret nil))
-  (declare (type (or cons null) tree ret) (type fixnum depth max-depth))
+  (declare (type (or cons null) tree ret) (type (and fixnum (real 0)) depth max-depth))
   (if tree
       (if (consp (car tree))
 	  (tree-depth (cdar tree) (1+ depth) (max max-depth (1+ depth)) (cons (list depth (cdr tree)) ret))
@@ -74,7 +74,7 @@
 
 (defun tree-atom-size (tree &optional (functions nil) (atoms 0) (ret nil))
   "Counts the number of atoms in a tree. Does not count () expressions as atoms, skips the function slot of the list, i.e. the first position of every list if functions is nil. Subtract one if gene is not wrapped in a list."
-  (declare (type (or cons null) tree ret) (type boolean functions) (type fixnum atoms))
+  (declare (type (or cons null) tree ret) (type boolean functions) (type (and fixnum (real 0)) atoms))
   (if tree
       (if (consp (car tree))
 	  (tree-atom-size (cdar tree) functions (if functions (1+ atoms) atoms) (cons (cdr tree) ret))
@@ -96,9 +96,9 @@
 (defgeneric create-random-gene (functions terminals &optional max-depth min-depth))
 
 (defmethod create-random-gene ((functions functions) (terminals cons) &optional (max-depth 6) (min-depth 2))
-  (declare (type fixnum max-depth min-depth))
+  (declare (type (and fixnum (real -1)) max-depth min-depth))
   (let* ((len-fun (length #1=(functions-function-list functions))) (len-term (length terminals)) (len (+ len-fun len-term)) gene)
-    (declare (type fixnum len-fun len-term len) (type (or null cons)))
+    (declare (type (and fixnum (real 0)) len-fun len-term len) (type (or null cons)))
     (flet ((create-new-sexp (num functions terminals)
 	     (declare (type fixnum num) (type functions functions) (type cons terminals))
 		 (if (< num len-fun)
@@ -106,7 +106,7 @@
 		     (nth (- num len-fun) terminals))))
       (setf gene (create-new-sexp (random len-fun) functions terminals))
       (do () ((tree-find-not gene :sexp) gene)
-	(setf gene (tree-replace gene :sexp max-depth min-depth (lambda (x y z) (create-new-sexp (random x) y z)) len functions terminals))))))
+	(setf gene (tree-replace gene :sexp max-depth min-depth (lambda (x y z) (declare (type (and fixnum (real 0)) x)) (create-new-sexp (random x) y z)) len functions terminals))))))
 
 (defun create-random-full-gene (functions terminals &optional (max-depth 6) (min-depth 2))
   (declare (type functions functions) (type cons terminals) (type fixnum max-depth min-depth))
@@ -133,7 +133,7 @@
 	  (rplacd (nth j i) (cdr temp)))))))
 
 (defun adjust-to-linear-fitness (fitness-list max-fit min-fit avg-fit fit-list-length &optional (max-fit-multiplier 2))
-  (declare (type cons fitness-list) (type number max-fit min-fit avg-fit) (type fixnum fit-list-length max-fit-multiplier))
+  (declare (type cons fitness-list) (type real max-fit min-fit avg-fit) (type (and fixnum (real 0)) fit-list-length max-fit-multiplier))
   (if (= max-fit avg-fit) (make-list fit-list-length :initial-element 1)
       (let* ((a (/ (- max-fit-multiplier 1) (- max-fit avg-fit))) (b (* -1 (1+ (* a avg-fit)))) (result #1=(pmapcar (lambda (x) (declare (type number x)) (+ b (* a x))) :size fit-list-length fitness-list)))
 	(declare (type number a b) (type cons result))
@@ -148,8 +148,8 @@
 (defun update-population-fitness (current-population fitness-function)
   (declare (type function fitness-function) (type population current-population))
   (labels ((upf-best-gene-helper (gene-list fitness-list best-gene-fitness)
-	     (declare (type cons gene-list fitness-list) (type number best-gene-fitness))
-	     (if (= (car fitness-list) best-gene-fitness)
+	     (declare (type cons gene-list fitness-list) (type real best-gene-fitness))
+	     (if (= (the real (car fitness-list)) best-gene-fitness)
 		 (values (car gene-list) (car fitness-list))
 		 (upf-best-gene-helper (cdr gene-list) (cdr fitness-list) best-gene-fitness))))
     (pmap-into #1=(population-gene-fitness-list current-population) fitness-function :size (population-number-of-genes current-population) (population-genes current-population))
@@ -183,7 +183,7 @@
 
 ;		     (loop for i from 1 to (population-number-of-genes current-population) collect (copy-tree (cmp-helper (population-genes current-population) (population-gene-adjusted-fitness-list current-population) (random total-fitness)))))))
 (defun bmp-helper (gene-list functions terminals pairs-remaining mutate-percentage &optional (max-depth 50))
-  (declare (type fixnum pairs-remaining max-depth) (type cons gene-list terminals) (type single-float mutate-percentage)
+  (declare (type (and fixnum (real 0)) pairs-remaining max-depth) (type cons terminals) (type (or null cons) gene-list) (type (single-float 0.0 1.0) mutate-percentage)
 	   (type functions functions))
   (if (<= 2 pairs-remaining)
       (let ((base-gene-number (random (functions-base-gene-copy-number functions))))
@@ -198,17 +198,18 @@
 		(if #1#
 		    (setf (car sub-two) (car sub-one)))))
 	  (bmp-helper (cddr gene-list) functions terminals (- pairs-remaining 2) mutate-percentage max-depth)))
-      (let ((n (length gene-list)))
-	(declare (type fixnum n))
-	(dotimes (i (the fixnum (round (+ (* n mutate-percentage (- 1 mutate-percentage) (gaussian-random)) (* n mutate-percentage)))))
-	  (plet ((sub-gene (random-elt gene-list)))
-	    (plet ((sub-one (random-elt (node-list sub-gene))) (sub-two (list (create-random-gene functions terminals -1 1))))
-	      (rotatef (car sub-one) (car sub-two))
-	      (if (< max-depth (the fixnum (tree-depth sub-gene)))
-		  (rotatef (car sub-one) (car sub-two)))))))))
+      (if gene-list
+	  (let ((n (length gene-list)))
+	    (declare (type fixnum n))
+	    (dotimes (i (the fixnum (round (+ (* n mutate-percentage (- 1 mutate-percentage) (gaussian-random)) (* n mutate-percentage)))))
+	      (plet ((sub-gene (random-elt gene-list)))
+		(plet ((sub-one (random-elt (node-list sub-gene))) (sub-two (list (create-random-gene functions terminals -1 1))))
+		  (rotatef (car sub-one) (car sub-two))
+		  (if (< max-depth (the fixnum (tree-depth sub-gene)))
+		      (rotatef (car sub-one) (car sub-two))))))))))
 
-(defun breed-mating-pool (mating-pool functions terminals &optional (breed-percentage 0.9) (mutate-percentage .01))
-  (declare (type population mating-pool) (type functions functions) (type cons terminals) (type single-float breed-percentage mutate-percentage))
+(defun breed-mating-pool (mating-pool functions terminals &optional (breed-percentage 1.0) (mutate-percentage 0.0))
+  (declare (type population mating-pool) (type functions functions) (type cons terminals) (type (single-float 0.0 1.0) breed-percentage mutate-percentage))
   (bmp-helper (population-genes mating-pool) functions terminals (round (* (population-number-of-genes mating-pool) breed-percentage)) mutate-percentage)
     mating-pool)
 
@@ -228,14 +229,14 @@
 		      (delete-duplicates nil) (population-size 100) (init-functions functions) (init-terminals terminals) (fit-function fitness-function) (print-frequency print-freq);for during initialization, whether to check for duplicates
 		      (pt-function nil)
 		      (file nil)) ;for saving and loading
-    (declare (type fixnum generations population-size print-frequency) (type keyword operation) (type boolean delete-duplicates) (type functions init-functions) (type cons init-terminals) (type function fit-function) (type (or null (simple-array character (*)))))
+    (declare (type (and fixnum (real 0)) generations population-size print-frequency) (type keyword operation) (type boolean delete-duplicates) (type functions init-functions) (type cons init-terminals) (type function fit-function) (type (or null (simple-array character (*)))))
     (case operation
       (:next-generation
        (update-population-fitness current-population fit-function)
        (setf mating-pool (create-mating-pool current-population))
        (setf current-population (breed-mating-pool mating-pool functions terminals))
        (update-history-report current-population generation print-freq)
-       (setf generation (1+ generation)))
+       (setf generation (the (and fixnum (real 0)) (1+ generation))))
       (:best-of-generation
        (labels ((bog-helper (gene-list fitness-list max-fitness)
 		  (if (= max-fitness (car fitness-list))
@@ -247,14 +248,14 @@
        (setf mating-pool (create-mating-pool current-population))
        (setf current-population (breed-mating-pool mating-pool functions terminals))
        (update-history-report current-population generation print-freq)
-       (setf generation (1+ generation)))
+       (setf generation (the (and fixnum (real 0)) (1+ generation))))
       (:next-generations
        (dotimes (i generations)
 	 (update-population-fitness current-population fitness-function)
 	 (setf mating-pool (create-mating-pool current-population))
 	 (setf current-population (breed-mating-pool mating-pool functions terminals))
 	 (update-history-report current-population generation print-freq)
-	 (setf generation (1+ generation))))
+	 (setf generation (the (and fixnum (real 0)) (1+ generation)))))
        (:initialize
        (setf terminals init-terminals functions init-functions
 	     (population-number-of-genes current-population) population-size
@@ -309,7 +310,7 @@
       (:current-population current-population))))
 
 (defun boltzmann (e-i e-i+1 temp &optional (k 1.0d0))
-  (declare (type real e-i e-i+1) (type double-float temp k))
+  (declare (type real e-i e-i+1) (type (double-float 0.0d0) temp k))
   (exp (the double-float (/ (abs (- e-i e-i+1)) -1 k temp))))
 
 (defun simulated-annealing (initial-value initial-temperature energy-function step-function &optional (min-t 2.0d-6) (mu-T 1.003d0) (k 1.0d0))
@@ -322,14 +323,14 @@
 
 (export 'genetic-algorithm)
 (defun genetic-algorithm (terminal-list gene-length population-size generations fitness-function &key (mutate 0.01) (verbose nil) (result :default) (greedy nil))
-  (declare (type cons terminal-list) (type function fitness-function) (type fixnum gene-length population-size generations) (type keyword result) (type boolean verbose greedy))
+  (declare (type cons terminal-list) (type function fitness-function) (type (and fixnum (real 0)) gene-length population-size generations) (type keyword result) (type boolean verbose greedy))
   (labels ((gene-maker (terminal-list gene-length &optional (acc nil) (len (length acc)))
-	     (declare (type cons terminal-list) (type (or null cons) acc) (type fixnum gene-length len))
+	     (declare (type cons terminal-list) (type (or null cons) acc) (type (and fixnum (real 0)) gene-length len))
 	     (if (= len gene-length)
 		 acc
 		 (gene-maker terminal-list gene-length (cons (random-elt terminal-list) acc) (1+ len))))
 	   (gene-list-maker (terminal-list gene-length population-size &optional (acc nil) (len (length acc)))
-	     (declare (type cons terminal-list) (type fixnum gene-length population-size len) (type (or null cons) acc))
+	     (declare (type cons terminal-list) (type (and fixnum (real 0)) gene-length population-size len) (type (or null cons) acc))
 	     (if (= len population-size)
 		 acc
 		 (gene-list-maker terminal-list gene-length population-size (cons (gene-maker terminal-list gene-length nil 0) acc) (1+ len))))
@@ -374,11 +375,166 @@
 		    (nth (position #2=(apply #'max current-genes-fitness) current-genes-fitness) current-genes)
 		    #2#))
 	(setf current-genes (breed-mating-genes mating-genes))
-	(pmap-into current-genes (lambda (x) (if (zerop (random (round (* mutate population-size))))
+	(pmap-into current-genes (lambda (x) (declare (type (or null cons) x)) (if (zerop (random (round (* mutate population-size))))
 						(let ((place (random gene-length)))
 						  (append (subseq x 0 place) (list (random-elt terminal-list)) (subseq x (1+ place))))
 						x)) current-genes))
       (case result
 	(:default #1# (values (nth (position (apply #'max current-genes-fitness) current-genes-fitness) current-genes) #2#))))))
 	
-	  
+;;;;;EUGENE
+
+(defun default-program-lisp-function (&rest args)
+  (error "default-program-lisp-function was called with args: ~a" args))
+
+(defstruct program
+  (lisp-function #'default-program-lisp-function :type function)
+  (genome nil :type (or cons null))
+  (fitness-history nil :type (or null cons))
+  (running-fitness 0 :type real)
+;  (most-recent-fitness 0 :type real)
+  (most-recent-output nil :type (or null cons))
+;  (rank 0 :type fixnum)
+;  (genome-history-left nil :type (or null cons))
+;  (genome-history-right nil :type (or null cons))
+  (number-of-parents-left 0 :type (and fixnum (real 0)))
+  (number-of-parents-right 0 :type (and fixnum (real 0)))
+  (creation-method :default :type keyword))
+
+(declaim (inline program-number-of-parents))
+(defun program-number-of-parents (program-instance)
+  (declare (type program program-instance))
+  (the (and fixnum (real 0)) (+ (program-number-of-parents-left program-instance) (program-number-of-parents-right program-instance))))
+
+(declaim (inline program-most-recent-fitness))
+(defun program-most-recent-fitness (program-instance)
+  (declare (type program program-instance))
+  (the real (first (program-fitness-history program-instance))))
+
+(defun simple-running-fitness-tabulator (fitness-history)
+  (declare (type cons fitness-history))
+  (loop for i of-type real in fitness-history for j of-type (and fixnum (real 1)) from 1 to 100 summing (/ i j) into sum of-type real summing (/ 1 j) into recip of-type (and rational (real 1)) finally (return (/ sum recip))))
+
+(defstruct program-pool
+  (programs nil :type (or null cons))
+  (size 0 :type (and fixnum (real 0)))
+  (functions nil :type functions)
+  (terminals nil :type (or null cons))
+  (program-evaluator nil :type function)
+  (fitness-function (lambda (x y) (declare (ignore y) (type cons x)) (car x)) :type function)
+  (running-fitness-tabulator #'simple-running-fitness-tabulator :type function))
+
+(defun create-random-full-gene-program (functions terminals program-evaluator &optional (max-depth 6) (min-depth 2))
+  (declare (type functions functions) (type cons terminals) (type fixnum max-depth min-depth) (type function program-evaluator))
+  (let ((temp
+	 (make-program :genome (create-random-full-gene functions terminals max-depth min-depth)
+		       :creation-method :crfgp)))
+    (declare (type program temp))
+    (setf (program-lisp-function temp) (funcall program-evaluator (program-genome temp)))
+    temp))
+
+(defun create-simple-child (parent-1 parent-2 program-evaluator &optional (base-genome-length (min (length (program-genome parent-1)) (length (program-genome parent-2)))) (creation-method :csc))
+  (declare (type program parent-1 parent-2) (type function program-evaluator) (type keyword creation-method) (type (and fixnum (real 0)) base-genome-length))
+  (let ((temp (make-program :genome (copy-tree (program-genome parent-1))
+;			    :genome-history-left (cons (program-genome parent-1) (program-genome-history-left parent-1))
+;			    :genome-history-right (cons (program-genome parent-2) (program-genome-history parent-2))
+			    :number-of-parents-left (the (and fixnum (real 1)) (+ 1 (program-number-of-parents parent-1)))
+			    :number-of-parents-right (the (and fixnum (real 1)) (+ 1 (program-number-of-parents parent-2)))
+			    :creation-method creation-method)))
+    (declare (type program temp))
+    (let ((base-place (random base-genome-length)))
+      (declare (type (and fixnum (real 0)) base-place))
+      (setf (car (random-elt (node-list (list (nth base-place (program-genome temp)))))) (car (random-elt (node-list (list (nth base-place (program-genome parent-2))))))))
+    (setf (program-lisp-function temp) (funcall program-evaluator (program-genome temp)))
+    temp))
+
+(defun create-simple-comparison-child (parent-1 parent-2 program-evaluator ideal-output &optional (base-genome-length (min (length (program-genome parent-1)) (length (program-genome parent-2)))) (creation-method :cscc))
+  (declare (type program parent-1 parent-2) (type function program-evaluator) (type keyword creation-method) (type (and fixnum (real 0)) base-genome-length) (type (or null cons) ideal-output))
+ (if ideal-output (assert (= (length ideal-output) base-genome-length)))
+(let ((temp (make-program :genome (copy-tree (program-genome parent-1))
+;			    :genome-history-left (cons (program-genome parent-1) (program-genome-history parent-1) (program-genome-history parent-2) (list (program-genome parent-2)))
+			  :number-of-parents-left (the (and fixnum (real 1)) (+ 1 (program-number-of-parents parent-1)))
+			  :number-of-parents-right (the (and fixnum (real 1)) (+ 1 (program-number-of-parents parent-2)))
+			    :creation-method creation-method)))
+  (declare (type program temp))
+  (let* ((possibility-places (loop for i of-type boolean in (mapcar (lambda (x y) (declare (type boolean x y)) (if x nil (if y t))) (mapcar #'equalp (program-most-recent-output parent-1) ideal-output) (mapcar #'equalp (program-most-recent-output parent-2) ideal-output)) for j of-type (and fixnum (real 0)) from 0 nconc (if i (list j))))
+	 (base-place (if possibility-places (nth (random (length possibility-places)) possibility-places) (random base-genome-length))))
+    (declare (type (or null cons) possibility-places) (type (and fixnum (real 0)) base-place))
+    (setf (car (random-elt (node-list (list (nth base-place (program-genome temp)))))) (car (random-elt (node-list (list (nth base-place (program-genome parent-2))))))))
+  (setf (program-lisp-function temp) (funcall program-evaluator (program-genome temp)))
+  temp))
+
+(defmacro linear-fill-pool-with-children (program-pool child-maker creation-method &optional extra-input)
+  `(do ((children (do ((lst (program-pool-programs ,program-pool) (rest lst)) (count 0 (1+ count)))
+		      ((null (car lst)) (if (not (assert (< (program-pool-size ,program-pool) (* count 2)))) lst))
+		    (declare (type (and fixnum (real 0)) count))) (rest children))
+	(parents (program-pool-programs ,program-pool) (rest parents)))
+       ((null children) program-pool)
+     ,(if extra-input
+	  `(rplaca children (,child-maker (first parents) (second parents) (program-pool-program-evaluator ,program-pool) ,extra-input (functions-base-gene-copy-number (program-pool-functions ,program-pool)) ,creation-method))
+	  `(rplaca children (,child-maker (first parents) (second parents) (program-pool-program-evaluator ,program-pool) (functions-base-gene-copy-number (program-pool-functions ,program-pool)) ,creation-method)))))
+
+(defun fill-pool-with-simple-children (program-pool)
+  (declare (type program-pool program-pool))
+  (do ((children (do ((lst (program-pool-programs program-pool) (rest lst)) (count 0 (1+ count))) ((null (car lst)) (if (not (assert (< (program-pool-size program-pool) (* count 2)))) lst)) (declare (type (and fixnum (real 0)) count))) (rest children))
+       (parents (program-pool-programs program-pool) (rest parents)))
+      ((null children) program-pool)
+    (rplaca children (create-simple-child (first parents) (second parents) (program-pool-program-evaluator program-pool) (functions-base-gene-copy-number (program-pool-functions program-pool)) :csc-fpwsc))))
+
+(defun fill-pool-with-simple-comparison-children (program-pool ideal-output)
+  (declare (type program-pool program-pool) (type (or null cons) ideal-output))
+  (do ((children (do ((lst (program-pool-programs program-pool) (rest lst)) (count 0 (1+ count))) ((null (car lst)) (if (not (assert (< (program-pool-size program-pool) (* count 2)))) lst)) (declare (type (and fixnum (real 0)) count))) (rest children))
+       (parents (program-pool-programs program-pool) (rest parents)))
+      ((null children) program-pool)
+    (rplaca children (create-simple-comparison-child (first parents) (second parents) (program-pool-program-evaluator program-pool) ideal-output (functions-base-gene-copy-number (program-pool-functions program-pool)) :cscc-fpwscc))))
+
+(defun feed-program-unknown-data (program data fitness-function)
+  (declare (type program program) (type (or null cons) data) (type function fitness-function))
+  (let ((temp-fitness (funcall fitness-function (apply (program-lisp-function program) data) data)))
+    (setf #1=(program-fitness-history program) (nconc (list temp-fitness) #1#))
+	  ;(program-most-recent-fitness program) temp-fitness)
+    program))
+
+(defun feed-pool-unknown-data (program-pool data)
+  (declare (type program-pool program-pool) (type (or null cons) data))
+  (dolist (i (program-pool-programs program-pool) program-pool)
+    (feed-program-unknown-data i data (program-pool-fitness-function program-pool))))
+
+(defun tabulate-pool-running-fitness (program-pool)
+  (declare (type program-pool program-pool))
+  (dolist (i (program-pool-programs program-pool) program-pool)
+    (declare (type program i))
+    (setf (program-running-fitness i) (funcall (program-pool-running-fitness-tabulator program-pool) (program-fitness-history i)))))
+
+(defun cull-bottom-of-pool (program-pool &optional (cull-fraction 0.2))
+  (declare (type program-pool program-pool) (type (single-float 0.0 1.0) cull-fraction))
+  (setf #1=(program-pool-programs program-pool) (subseq (remove-duplicates (sort (program-pool-programs (tabulate-pool-running-fitness program-pool)) #'> :key #'program-running-fitness) :test #'tree-equal :key #'program-genome) 0 (if (zerop cull-fraction) nil (round (* (- 1 cull-fraction) (program-pool-size program-pool))))))
+  (setf #1# (nconc #1# (make-list (the (and fixnum (real 0)) (- (program-pool-size program-pool) (length #1#))) :initial-element nil)))
+  program-pool)
+
+(defun feed-program-known-data (program data fitness-function)
+  (declare (type program program) (type (or null cons) data) (type function fitness-function))
+  (let ((temp-output (apply (program-lisp-function program) data)))
+    (let ((temp-fitness (funcall fitness-function temp-output data)))
+      (setf #1=(program-fitness-history program) (nconc (list temp-fitness) #1#)
+	   ; (program-most-recent-fitness program) temp-fitness
+	    (program-most-recent-output program) temp-output))
+    program))
+
+(defun feed-pool-known-data (program-pool data &optional ideal-output (cull-fraction 0.2))
+  (declare (type program-pool program-pool) (type (or null cons) data ideal-output) (type single-float cull-fraction))
+  (fill-pool-with-simple-comparison-children (dolist (i (program-pool-programs (cull-bottom-of-pool program-pool cull-fraction)) program-pool)
+    (if i (feed-program-known-data i data (program-pool-fitness-function program-pool)) (return program-pool))) ideal-output))
+
+(defmacro fill-program-pool (program-pool fill-function)
+  `(setf (program-pool-programs ,program-pool)
+	 (loop for i from 1 to (program-pool-size ,program-pool) collect
+	      (funcall ,fill-function))))
+
+(defun fill-program-pool-randomly (program-pool &optional (max-depth 6) (min-depth 2))
+  (declare (type program-pool program-pool) (type fixnum max-depth min-depth))
+  (fill-program-pool program-pool (lambda () (create-random-full-gene-program (program-pool-functions program-pool)
+								   (program-pool-terminals program-pool)
+								   (program-pool-program-evaluator program-pool)
+								   max-depth min-depth)))
+  program-pool)
