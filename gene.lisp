@@ -5,7 +5,7 @@
   ;(ql:quickload :lparallel))
 (defpackage :genetic-programming
   (:use :common-lisp :alexandria :lparallel)
-  (:export :gene-prog :make-population :population-genes :population-gene-fitness-list :population-gene-adjusted-fitness-list :population-number-of-genes :population-average-fitness :population-maximum-fitness :population-minimum-fitness :population-best-gene-so-far :population-best-gene-so-far-fitness :make-functions :functions-function-list :functions-arg-num-list :simulated-annealing :genetic-algorithm :make-program :program-lisp-function :program-genome :program-fitness-history :program-value-history :program-running-fitness :program-running-value :program-most-recent-output :program-number-of-parents :program-number-of-parents-left :program-number-of-parents-right :program-creation-method :program-most-recent-fitness :program-most-recent-value :simple-running-fitness-tabulator :make-program-pool :program-pool-programs :program-pool-size :program-pool-functions :program-rank :program-pool-terminals :program-pool-program-evaluator :program-pool-fitness-function :program-pool-value-function :program-pool-running-fitness-tabulator :program-pool-running-value-tabulator :create-random-full-gene-program :create-simple-child :create-simple-comparison-child :roullete-wheel-chooser :fill-pool-with-simple-children :fill-pool-proportionally-with-simple-children :fill-pool-with-simple-comparison-children :fill-pool-proportionally-with-simple-comparison-children :fill-pool-rank-proportionally-with-simple-comparison-children :feed-program-unknown-data :feed-pool-unknown-data :tabulate-pool-running-fitness :cull-bottom-of-pool :feed-program-known-data :feed-pool-known-data :fill-program-pool-randomly :make-mod-2-program-evaluator :straight-running-fitness-tabulator :print-program-pool-information :simple-program-pool-crossover :delete-program-pool-fitness-history))
+  (:export :gene-prog :make-population :population-genes :population-gene-fitness-list :population-gene-adjusted-fitness-list :population-number-of-genes :population-average-fitness :population-maximum-fitness :population-minimum-fitness :population-best-gene-so-far :population-best-gene-so-far-fitness :make-functions :functions-function-list :functions-arg-num-list :simulated-annealing :genetic-algorithm :make-program :program-lisp-function :program-genome :program-fitness-history :program-value-history :program-running-fitness :program-running-value :program-most-recent-output :program-number-of-parents :program-number-of-parents-left :program-number-of-parents-right :program-creation-method :program-most-recent-fitness :program-most-recent-value :simple-running-fitness-tabulator :make-program-pool :program-pool-programs :program-pool-size :program-pool-functions :program-rank :program-pool-terminals :program-pool-program-evaluator :program-pool-fitness-function :program-pool-value-function :program-pool-running-fitness-tabulator :program-pool-running-value-tabulator :create-random-full-gene-program :create-simple-child :create-simple-comparison-child :roullete-wheel-chooser :fill-pool-with-simple-children :fill-pool-proportionally-with-simple-children :fill-pool-with-simple-comparison-children :fill-pool-proportionally-with-simple-comparison-children :fill-pool-rank-proportionally-with-simple-comparison-children :feed-program-unknown-data :feed-pool-unknown-data :tabulate-pool-running-fitness :cull-bottom-of-pool :feed-program-known-data :feed-pool-known-data :fill-program-pool-randomly :make-mod-2-program-evaluator :straight-running-fitness-tabulator :print-program-pool-information :simple-program-pool-crossover :delete-program-pool-fitness-history :fill-pool-with-random-children))
 (in-package :genetic-programming)
 
 ;(defclass gene ()
@@ -392,9 +392,9 @@
   (lisp-function #'default-program-lisp-function :type function)
   (genome nil :type (or cons null))
   (fitness-history nil :type (or null cons))
-  (value-history nil :type (or null cons))
+;  (value-history nil :type (or null cons))
   (running-fitness 0 :type real)
-  (running-value 0 :type real)
+;  (running-value 0 :type real)
 ;  (most-recent-fitness 0 :type real)
   (most-recent-output nil :type (or null cons))
   (rank 0 :type (and fixnum (real 0)))
@@ -414,10 +414,10 @@
   (declare (type program program-instance))
   (the real (first (program-fitness-history program-instance))))
 
-(declaim (inline program-most-recent-value))
-(defun program-most-recent-value (program-instance)
-  (declare (type program program-instance))
-  (the real (first (program-value-history program-instance))))
+;(declaim (inline program-most-recent-value))
+;(defun program-most-recent-value (program-instance)
+;  (declare (type program program-instance))
+;  (the real (first (program-value-history program-instance))))
 
 (defun straight-running-fitness-tabulator (fitness-history)
   (declare (type cons fitness-history))
@@ -434,15 +434,15 @@
   (terminals nil :type (or null cons) :read-only t)
   (program-evaluator nil :type function :read-only t)
   (fitness-function #1=(lambda (x y) (declare (ignore y) (type cons x)) (car x)) :type function)
-  (value-function #1# :type function)
-  (running-fitness-tabulator #'simple-running-fitness-tabulator :type function)
-  (running-value-tabulator #'straight-running-fitness-tabulator :type function))
+;  (value-function #1# :type function)
+  (running-fitness-tabulator #'simple-running-fitness-tabulator :type function))
+;  (running-value-tabulator #'straight-running-fitness-tabulator :type function))
 
 (defun delete-program-pool-fitness-history (program-pool)
   (declare (type program-pool program-pool))
   (loop for prgm of-type (or null program) in (program-pool-programs program-pool)
        if prgm do
-       (setf (program-fitness-history prgm) nil (program-value-history prgm) nil)
+       (setf (program-fitness-history prgm) nil); (program-value-history prgm) nil)
      end
      finally (return program-pool)))
 
@@ -547,40 +547,47 @@
   (declare (type program-pool program-pool) (type (or null cons) ideal-output))
   (proportional-fill-pool-with-children program-pool create-simple-comparison-child :cscc-fprpwscc ideal-output t))
 
-(defun feed-program-unknown-data (program data fitness-function value-function)
-  (declare (type program program) (type (or null cons) data) (type function fitness-function value-function))
+(defun fill-pool-with-random-children (program-pool &optional (max-depth 6) (min-depth 2))
+  (declare (type program-pool program-pool) (type fixnum max-depth min-depth))
+  (loop for prgms on (program-pool-programs program-pool)
+       if (null (car prgms)) do
+       (rplaca prgms
+	       (create-random-full-gene-program (program-pool-functions program-pool)
+						(program-pool-terminals program-pool)
+						(program-pool-program-evaluator program-pool)
+						max-depth min-depth)))
+  program-pool)
+
+(defun feed-program-unknown-data (program data fitness-function)
+  (declare (type program program) (type (or null cons) data) (type function fitness-function))
   (let ((temp-output (apply (program-lisp-function program) data)))
-    (setf #1=(program-fitness-history program) (nconc (list (funcall fitness-function temp-output data)) #1#)
-	  #2=(program-value-history program) (nconc (list (funcall value-function temp-output data)) #2#))
+    (setf #1=(program-fitness-history program) (nconc (list (funcall fitness-function temp-output data)) #1#))
     program))
 
 (defun feed-pool-unknown-data (program-pool data)
   (declare (type program-pool program-pool) (type (or null cons) data))
   (dolist (i (program-pool-programs program-pool) program-pool)
-    (feed-program-unknown-data i data (program-pool-fitness-function program-pool) (program-pool-value-function program-pool))))
+    (feed-program-unknown-data i data (program-pool-fitness-function program-pool))))
 
 (defun tabulate-pool-running-fitness (program-pool)
   (declare (type program-pool program-pool))
   (dolist (i (program-pool-programs program-pool) program-pool)
     (declare (type program i))
-    (setf (program-running-fitness i) (funcall (program-pool-running-fitness-tabulator program-pool) (program-fitness-history i))
-	  (program-running-value i) (funcall (program-pool-running-value-tabulator program-pool) (program-value-history i)))))
+    (setf (program-running-fitness i) (funcall (program-pool-running-fitness-tabulator program-pool) (program-fitness-history i)))))
 
 (defun cull-bottom-of-pool (program-pool &optional (cull-fraction 0.2))
   (declare (type program-pool program-pool) (type (single-float 0.0 1.0) cull-fraction))
-  (setf #1=(program-pool-programs program-pool) (loop for prgm in (remove-duplicates (sort (program-pool-programs (tabulate-pool-running-fitness program-pool)) #'> :key #'program-running-value) :test #'tree-equal :key #'program-genome) for q from 1 to (round (* (- 1 cull-fraction) (program-pool-size program-pool))) collect prgm))
+  (setf #1=(program-pool-programs program-pool) (loop for prgm in (remove-duplicates (sort (program-pool-programs (tabulate-pool-running-fitness program-pool)) #'> :key #'program-running-fitness) :test #'tree-equal :key #'program-genome) for q from 1 to (round (* (- 1 cull-fraction) (program-pool-size program-pool))) collect prgm))
   (setf #1# (nconc #1# (make-list (the (and fixnum (real 0)) (- (program-pool-size program-pool) (length #1#))) :initial-element nil)))
   program-pool)
 
-(defun feed-program-known-data (program data fitness-function value-function ideal-output)
-  (declare (type program program) (type (or null cons) data ideal-output) (type function fitness-function value-function))
+(defun feed-program-known-data (program data fitness-function ideal-output)
+  (declare (type program program) (type (or null cons) data ideal-output) (type function fitness-function))
   (let ((temp-output (apply (program-lisp-function program) data)))
     (declare (type (or null cons) temp-output))
-    (let ((temp-fitness (funcall fitness-function temp-output data)) (temp-value (funcall value-function temp-output data)))
-      (declare (type real temp-fitness temp-value))
+    (let ((temp-fitness (funcall fitness-function temp-output data)))
+      (declare (type real temp-fitness))
       (setf #1=(program-fitness-history program) (nconc (list temp-fitness) #1#)
-	    #2=(program-value-history program) (nconc (list temp-value) #2#)
-	   ; (program-most-recent-fitness program) temp-fitness
 	    (program-most-recent-output program) temp-output
 	    (program-rank program) (loop for i in temp-output for j in ideal-output sum (if (equalp i j) 1 0) into tally of-type (and fixnum (real 0)) finally (return tally))))
     program))
@@ -588,7 +595,7 @@
 (defun feed-pool-known-data (program-pool data &optional ideal-output (cull-fraction 0.2) (child-creation-function #'fill-pool-proportionally-with-simple-comparison-children))
   (declare (type program-pool program-pool) (type (or null cons) data ideal-output) (type single-float cull-fraction) (type function child-creation-function))
   (funcall child-creation-function (dolist (i (program-pool-programs (cull-bottom-of-pool program-pool cull-fraction)) program-pool)
-    (if i (feed-program-known-data i data (program-pool-fitness-function program-pool) (program-pool-value-function program-pool) ideal-output) (return program-pool))) ideal-output))
+    (if i (feed-program-known-data i data (program-pool-fitness-function program-pool) ideal-output) (return program-pool))) ideal-output))
 
 (defmacro fill-program-pool (program-pool fill-function)
   `(setf (program-pool-programs ,program-pool)
@@ -603,21 +610,20 @@
 								   max-depth min-depth)))
   program-pool)
 
-(defun print-program-pool-information (program-pool)
-  (declare (type program-pool program-pool))
+(defun print-program-pool-information (program-pool &optional (counter 0))
+  (declare (type program-pool program-pool) (type (integer 0) counter))
   (let ((first-program (first (program-pool-programs program-pool))))
     (declare (type program first-program))
-    (format t "~&Time:                               ~{~4d-~2,'0d-~2,'0d  ~d:~2,'0d:~2,'0d~}~%--------------------------------------------------------------------------------~%~%~{Max program running fitness:                           ~10,3f~%Max program running value:                            ~10,3f~%~%Max program rank:                                      ~10d~%Max program number of parents:                ~10d~}~%~%  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -~%~%First program running fitness:                           ~10,3f~%First program running value:                            ~10,3f~%~%First program rank:                                       ~10d~%First program number of parents:                 ~10d~%~%--------------------------------------------------------------------------------"
+    (format t "~&Time:                               ~{~4d-~2,'0d-~2,'0d  ~d:~2,'0d:~2,'0d~}~%Counter:                               ~d~%--------------------------------------------------------------------------------~%~%~{Max program running fitness:                           ~10,3f~%~%Max program rank:                                      ~10d~%Max program number of parents:                ~10d~}~%~%  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -~%~%First program running fitness:                           ~10,3f~%~%First program rank:                                       ~10d~%First program number of parents:                 ~10d~%~%--------------------------------------------------------------------------------"
 	    (nreverse (subseq (multiple-value-list (get-decoded-time)) 0 6))
+	    counter
 	    (loop for i of-type (or program null) in (program-pool-programs program-pool)
 	       if i
 	       maximize (program-running-fitness i) into running-fitness of-type real and
-	       maximize (program-running-value i) into running-value of-type real and
 	       maximize (program-rank i) into rank of-type fixnum and
 	       maximize (program-number-of-parents i) into parents of-type integer end
-	       finally (return (list running-fitness running-value rank parents)))
+	       finally (return (list running-fitness rank parents)))
 	    (program-running-fitness first-program)
-	    (program-running-value first-program)
 	    (program-rank first-program)
 	    (program-number-of-parents first-program))
     program-pool))
