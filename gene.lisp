@@ -5,7 +5,7 @@
   ;(ql:quickload :lparallel))
 (defpackage :genetic-programming
   (:use :common-lisp :alexandria :lparallel)
-  (:export :gene-prog :make-population :population-genes :population-gene-fitness-list :population-gene-adjusted-fitness-list :population-number-of-genes :population-average-fitness :population-maximum-fitness :population-minimum-fitness :population-best-gene-so-far :population-best-gene-so-far-fitness :make-functions :functions-function-list :functions-arg-num-list :simulated-annealing :genetic-algorithm :make-program :program-lisp-function :program-genome :program-fitness-history :program-value-history :program-running-fitness :program-running-value :program-most-recent-output :program-number-of-parents :program-number-of-parents-left :program-number-of-parents-right :program-creation-method :program-most-recent-fitness :program-most-recent-value :simple-running-fitness-tabulator :make-program-pool :program-pool-programs :program-pool-size :program-pool-functions :program-rank :program-pool-terminals :program-pool-program-evaluator :program-pool-fitness-function :program-pool-value-function :program-pool-running-fitness-tabulator :program-pool-running-value-tabulator :create-random-full-gene-program :create-simple-child :create-simple-comparison-child :roullete-wheel-chooser :fill-pool-with-simple-children :fill-pool-proportionally-with-simple-children :fill-pool-with-simple-comparison-children :fill-pool-proportionally-with-simple-comparison-children :fill-pool-rank-proportionally-with-simple-comparison-children :feed-program-unknown-data :feed-pool-unknown-data :tabulate-pool-running-fitness :cull-bottom-of-pool :feed-program-known-data :feed-pool-known-data :fill-program-pool-randomly :make-mod-2-program-evaluator :straight-running-fitness-tabulator :print-program-pool-information :simple-program-pool-crossover :delete-program-pool-fitness-history :fill-pool-with-random-children))
+  (:export :gene-prog :make-population :population-genes :population-gene-fitness-list :population-gene-adjusted-fitness-list :population-number-of-genes :population-average-fitness :population-maximum-fitness :population-minimum-fitness :population-best-gene-so-far :population-best-gene-so-far-fitness :make-functions :functions-function-list :functions-arg-num-list :simulated-annealing :genetic-algorithm :make-program :program-lisp-function :program-genome :program-fitness-history :program-value-history :program-running-fitness :program-running-value :program-most-recent-output :program-number-of-parents :program-number-of-parents-left :program-number-of-parents-right :program-creation-method :program-most-recent-fitness :program-most-recent-value :simple-running-fitness-tabulator :make-program-pool :program-pool-programs :program-pool-size :program-pool-functions :program-rank :program-pool-terminals :program-pool-program-evaluator :program-pool-fitness-function :program-pool-value-function :program-pool-running-fitness-tabulator :program-pool-running-value-tabulator :create-random-full-gene-program :create-simple-child :create-simple-comparison-child :roullete-wheel-chooser :fill-pool-with-simple-children :fill-pool-proportionally-with-simple-children :fill-pool-with-simple-comparison-children :fill-pool-proportionally-with-simple-comparison-children :fill-pool-rank-proportionally-with-simple-comparison-children :feed-program-unknown-data :feed-pool-unknown-data :tabulate-pool-running-fitness :cull-bottom-of-pool :feed-program-known-data :feed-pool-known-data :fill-program-pool-randomly :make-mod-2-program-evaluator :straight-running-fitness-tabulator :print-program-pool-information :simple-program-pool-crossover :delete-program-pool-fitness-history :fill-pool-with-random-children :fill-pool-with-top-of-other-pool :create-simple-sub-pools :fill-sub-pools-randomly :feed-sub-pools-unknown-data :cross-sub-pools :collapse-simple-sub-pools :cull-bottom-of-pool-list :print-program-pool-list-information :fill-sub-pools-proportionally-with-simple-children))
 (in-package :genetic-programming)
 
 ;(defclass gene ()
@@ -561,6 +561,15 @@
 						max-depth min-depth)))
   program-pool)
 
+(defun fill-pool-with-top-of-other-pool (program-pool other-pool)
+  (declare (type program-pool program-pool other-pool))
+  (loop for prgms on (program-pool-programs program-pool)
+     with other-prgms of-type list = (program-pool-programs other-pool)
+     if (null (car prgms)) do
+       (rplaca prgms (car other-prgms)) and do
+       (setf other-prgms (rest other-prgms)))
+  program-pool)
+
 (defun feed-program-unknown-data (program data fitness-function)
   (declare (type program program) (type (or null cons) data) (type function fitness-function))
   (let ((temp-output (apply (program-lisp-function program) data)))
@@ -633,7 +642,69 @@
 
 (defun simple-program-pool-crossover (program-pool-1 program-pool-2)
   (declare (type program-pool program-pool-1 program-pool-2))
-  (assert (= (length (program-pool-programs program-pool-1)) (length (program-pool-programs program-pool-2))))
+;  (assert (= (length (program-pool-programs program-pool-1)) (length (program-pool-programs program-pool-2))))
   (do ((p1 (program-pool-programs program-pool-1) (rest (rest p1))) (p2 (program-pool-programs program-pool-2) (rest (rest p2)))) ((null p1) (values program-pool-1 program-pool-2))
     (rotatef (car p1) (car p2))))
 
+(defun create-simple-sub-pools (program-pool &optional sub-size)
+  (declare (type program-pool program-pool))
+  (let ((constants (remove-if-not #'constantp (program-pool-terminals program-pool)))
+	(terms (remove-if #'constantp (program-pool-terminals program-pool))))
+    (unless sub-size (setf sub-size (round (/ (* 4 (program-pool-size program-pool)) (length terms)))))
+    (loop for term on terms
+       collect (make-program-pool
+		:size sub-size
+		:functions (program-pool-functions program-pool)
+		:terminals (append (list (car term) (if (cdr term) (cadr term) (car terms))) constants)
+		:program-evaluator (program-pool-program-evaluator program-pool)
+		:fitness-function (program-pool-fitness-function program-pool)
+		:running-fitness-tabulator (program-pool-running-fitness-tabulator program-pool)))))
+
+(defun collapse-simple-sub-pools (pool-list &optional size)
+  (declare (type list pool-list) (type (or null number) size))
+  (let ((in-size (if size size (/ (* (program-pool-size (first pool-list)) (length pool-list)) 4)))
+	(len (length pool-list)))
+    (make-program-pool
+     :size in-size
+     :programs (if (zerop (mod in-size len))
+		   (apply #'append (mapcar (lambda (prg) (subseq (program-pool-programs prg) 0 (/ in-size len))) pool-list))
+		   (apply #'append (mapcar (let ((cnt (mod in-size len))) (lambda (prg) (subseq (program-pool-programs prg) 0 (if (<= 0 (decf cnt)) (1+ (floor (/ in-size len))) (floor (/ in-size len)))))) pool-list)))
+     :functions (program-pool-functions (first pool-list))
+     :terminals (reduce #'union (mapcar #'program-pool-terminals pool-list))
+     :program-evaluator (program-pool-program-evaluator (first pool-list))
+     :fitness-function (program-pool-fitness-function (first pool-list))
+     :running-fitness-tabulator (program-pool-running-fitness-tabulator (first pool-list)))))
+
+(defmacro call-on-pool-list (func pool-list)
+  `(mapcar ,func ,pool-list))
+
+(defun fill-sub-pools-randomly (pool-list &optional (max-depth 6 max-depth-p) (min-depth 2 min-depth-p))
+  (declare (type list pool-list))
+  (if (or max-depth-p min-depth-p)
+      (call-on-pool-list (lambda (pool) (fill-program-pool-randomly pool max-depth min-depth)) pool-list)
+      (call-on-pool-list #'fill-program-pool-randomly pool-list)))
+
+(defun feed-sub-pools-unknown-data (pool-list data)
+  (declare (type list pool-list))
+  (call-on-pool-list (lambda (pool) (feed-pool-unknown-data pool data)) pool-list))
+
+(defun cull-bottom-of-pool-list (pool-list &optional (cull-fraction 0.2))
+  (declare (type list pool-list))
+  (call-on-pool-list (lambda (prg) (cull-bottom-of-pool prg cull-fraction)) pool-list))
+
+(defun print-program-pool-list-information (pool-list &optional (counter 0))
+  (declare (type list pool-list) (type number counter))
+  (print-program-pool-information (first pool-list) counter)
+  pool-list)
+
+(defun fill-sub-pools-proportionally-with-simple-children (pool-list)
+  (declare (type list pool-list))
+  (call-on-pool-list #'fill-pool-proportionally-with-simple-children pool-list))
+
+(defun cross-sub-pools (pool-list)
+  (declare (type list pool-list))
+  (rotate
+   (loop for p1 in pool-list by #'cddr
+      for p2 in (rest pool-list) by #'cddr
+      nconcing (multiple-value-list (simple-program-pool-crossover p1 p2)) into temp of-type list
+      finally (return (if (length= pool-list temp) temp (append temp (last pool-list)))))))
