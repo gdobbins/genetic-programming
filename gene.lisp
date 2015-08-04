@@ -622,19 +622,14 @@
 								   max-depth min-depth)))
   program-pool)
 
-(defun print-program-pool-information (program-pool &optional (counter 0))
+(defun print-program-pool-information (program-pool &optional (counter 0) extra-information)
   (declare (type program-pool program-pool) (type (integer 0) counter))
   (let ((first-program (first (program-pool-programs program-pool))))
     (declare (type program first-program))
-    (format t "~&Time:                               ~{~4d-~2,'0d-~2,'0d  ~d:~2,'0d:~2,'0d~}~%Counter:                               ~d~%--------------------------------------------------------------------------------~%~%~{Max program running fitness:                           ~10,3f~%~%Max program rank:                                      ~10d~%Max program number of parents:                ~10d~}~%~%  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -~%~%First program running fitness:                           ~10,3f~%~%First program rank:                                       ~10d~%First program number of parents:                 ~10d~%~%--------------------------------------------------------------------------------"
+    (format t "~&Time:                               ~{~4d-~2,'0d-~2,'0d  ~d:~2,'0d:~2,'0d~}~%Counter:                               ~d~%~a~%--------------------------------------------------------------------------------~%~%First program running fitness:                           ~10,3f~%~%First program rank:                                       ~10d~%First program number of parents:                 ~10d~%~%--------------------------------------------------------------------------------"
 	    (nreverse (subseq (multiple-value-list (get-decoded-time)) 0 6))
 	    counter
-	    (loop for i of-type (or program null) in (program-pool-programs program-pool)
-	       if i
-	       maximize (program-running-fitness i) into running-fitness of-type real and
-	       maximize (program-rank i) into rank of-type fixnum and
-	       maximize (program-number-of-parents i) into parents of-type integer end
-	       finally (return (list running-fitness rank parents)))
+	    extra-information
 	    (program-running-fitness first-program)
 	    (program-rank first-program)
 	    (program-number-of-parents first-program))
