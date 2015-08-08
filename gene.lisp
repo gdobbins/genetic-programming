@@ -626,7 +626,7 @@
   (declare (type program-pool program-pool) (type (integer 0) counter))
   (let ((first-program (first (program-pool-programs program-pool))))
     (declare (type program first-program))
-    (format t "~&Time:                               ~{~4d-~2,'0d-~2,'0d  ~d:~2,'0d:~2,'0d~}~%Counter:                               ~d~%~a~%--------------------------------------------------------------------------------~%~%First program running fitness:                           ~10,3f~%~%First program rank:                                       ~10d~%First program number of parents:                 ~10d~%~%--------------------------------------------------------------------------------"
+    (format t "~&Time:                  ~{~4d-~2,'0d-~2,'0d  ~d:~2,'0d:~2,'0d~}~%Counter:                                             ~10d~%~a~%--------------------------------------------------------------------------------~%~%First program running fitness:                           ~10,3f~%~%First program rank:                                  ~10d~%First program number of parents:                     ~10d~%~%--------------------------------------------------------------------------------~%"
 	    (nreverse (subseq (multiple-value-list (get-decoded-time)) 0 6))
 	    counter
 	    extra-information
