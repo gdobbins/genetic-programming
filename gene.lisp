@@ -1,8 +1,19 @@
+;;; Copyright 2015 Graham Dobbins
+
+;; This program is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 (in-package :cl-user)
-;(eval-when (:compile-toplevel :load-toplevel :execute)
-  ;(ql:quickload :series)
- ; (ql:quickload :alexandria)
-  ;(ql:quickload :lparallel))
 (defpackage :genetic-programming
   (:use :common-lisp :alexandria :lparallel)
   (:export :gene-prog :make-population :population-genes :population-gene-fitness-list :population-gene-adjusted-fitness-list :population-number-of-genes :population-average-fitness :population-maximum-fitness :population-minimum-fitness :population-best-gene-so-far :population-best-gene-so-far-fitness :make-functions :functions-function-list :functions-arg-num-list :simulated-annealing :genetic-algorithm :make-program :program-lisp-function :program-genome :program-fitness-history :program-value-history :program-running-fitness :program-running-value :program-most-recent-output :program-number-of-parents :program-number-of-parents-left :program-number-of-parents-right :program-creation-method :program-most-recent-fitness :program-most-recent-value :simple-running-fitness-tabulator :make-program-pool :program-pool-programs :program-pool-size :program-pool-functions :program-rank :program-pool-terminals :program-pool-program-evaluator :program-pool-fitness-function :program-pool-value-function :program-pool-running-fitness-tabulator :program-pool-running-value-tabulator :create-random-full-gene-program :create-simple-child :create-simple-comparison-child :roullete-wheel-chooser :fill-pool-with-simple-children :fill-pool-proportionally-with-simple-children :fill-pool-with-simple-comparison-children :fill-pool-proportionally-with-simple-comparison-children :fill-pool-rank-proportionally-with-simple-comparison-children :feed-program-unknown-data :feed-pool-unknown-data :tabulate-pool-running-fitness :cull-bottom-of-pool :feed-program-known-data :feed-pool-known-data :fill-program-pool-randomly :make-mod-2-program-evaluator :straight-running-fitness-tabulator :print-program-pool-information :simple-program-pool-crossover :delete-program-pool-fitness-history :fill-pool-with-random-children :fill-pool-with-top-of-other-pool :create-simple-sub-pools :fill-sub-pools-randomly :feed-sub-pools-unknown-data :cross-sub-pools :collapse-simple-sub-pools :cull-bottom-of-pool-list :print-program-pool-list-information :fill-sub-pools-proportionally-with-simple-children))
