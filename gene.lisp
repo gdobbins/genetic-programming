@@ -321,7 +321,14 @@
       (:functions functions)
       (:generation generation)
       (:print-freq print-freq)
-      (:current-population current-population))))
+      (:current-population current-population)
+      (:reset
+       (setf
+	current-population (make-population)
+	mating-pool (make-population)
+	terminals nil
+	functions (make-functions)
+	generation 0)))))
 
 (defun boltzmann (e-i e-i+1 temp &optional (k 1.0d0))
   (declare (type real e-i e-i+1) (type (double-float 0.0d0) temp k))
