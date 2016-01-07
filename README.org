@@ -61,9 +61,55 @@ Any lisp functions can be used, including user defined ones.
 Currently no simplification of the result is performed.
 Increasing the population size will typically give better results than increasing the number of generations.
 
-*** TODO Genetic Algorithm
+*** Genetic Algorithm
+The genetic-algorithm starts with a population of randomly generated sequences which are bred by splicing the fittest sequences in each generation together.
+#+BEGIN_SRC lisp
+(genetic-algorithm '(1 0) 50 100 50 (lambda (x) (count 1 x)))
+#+END_SRC
+yields
+#+BEGIN_SRC lisp
+(1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1)
+#+END_SRC
+The best results are found when the number of terminals is as small as possible:
+#+BEGIN_SRC lisp
+(genetic-algorithm '(1 0 2) 50 100 50 (lambda (x) (count 1 x)))
+#+END_SRC
+yields
+#+BEGIN_SRC lisp
+(1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 2 1 1 1 1 0 1 1 1 1 1 1 1 1 1 1 1 2 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1)
+#+END_SRC
 
-*** TODO Simulated Annealing
+*** Simulated Annealing
+Specify an initial value, an energy function, and a step function
+#+BEGIN_SRC lisp
+(simulated-annealing 1d2 1d10
+		     (lambda (x)	;Energy, lower is better, min @ 0
+		       (+ (expt (* (+ (sin x) x) (cos x)) 2) (expt x 2)))
+		     (lambda (x)	;Equal probability of direction
+		       (+ x (random 2d0) -1d0))
+		     2.0d-10
+		     1.0003d0)
+#+END_SRC
+and a minimum is found, not always the global min:
+#+BEGIN_SRC lisp
+1.1196443731265049d-5
+#+END_SRC
+The simulated-annealing function is sufficiently generic to allow for all manner of optimization problems:
+#+BEGIN_SRC lisp
+(simulated-annealing '() 1d10
+		     (lambda (x)
+		       (abs (- (length x) 5)))
+		     (lambda (x)
+		       (if (= 0 (random 2))
+			   (cdr x)
+			   (cons 'Z x))))
+#+END_SRC
+yields
+#+BEGIN_SRC lisp
+(Z Z Z Z Z)
+#+END_SRC
+
+
 
 * License
     This program is free software: you can redistribute it and/or modify
