@@ -64,7 +64,12 @@ Increasing the population size will typically give better results than increasin
 *** Genetic Algorithm
 The genetic-algorithm starts with a population of randomly generated sequences which are bred by splicing the fittest sequences in each generation together.
 #+BEGIN_SRC lisp
-(genetic-algorithm '(1 0) 50 100 50 (lambda (x) (count 1 x)))
+(genetic-algorithm '(1 0)		;Terminals
+		   50			;Gene length
+		   100			;Population size
+		   50			;Number of generations
+		   (lambda (x) (count 1 x)) ;Fitness function
+		   )
 #+END_SRC
 yields
 #+BEGIN_SRC lisp
@@ -82,12 +87,13 @@ yields
 *** Simulated Annealing
 Specify an initial value, an energy function, and a step function
 #+BEGIN_SRC lisp
-(simulated-annealing 1d2 1d10
-		     (lambda (x)	;Energy, lower is better, min @ 0
+(simulated-annealing 1d2		;Initial value
+		     1d10		;Initial Temperature
+		     (lambda (x)	;Energy function, lower is better, min @ 0
 		       (+ (expt (* (+ (sin x) x) (cos x)) 2) (expt x 2)))
-		     (lambda (x)	;Equal probability of direction
-		       (+ x (random 2d0) -1d0))
-		     2.0d-10
+		     (lambda (x)	;Step function
+		       (+ x (random 2d0) -1d0))	;Equal probability of direction
+		     2.0d-10		;Minimum temperature
 		     1.0003d0)
 #+END_SRC
 and a minimum is found, not always the global min:
@@ -109,6 +115,8 @@ yields
 (Z Z Z Z Z)
 #+END_SRC
 
+* Contributing
+  Pull requests are welcome. Please report any issues or bugs.
 
 
 * License
