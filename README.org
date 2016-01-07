@@ -4,10 +4,66 @@
 A work in progress Common Lisp program facilitating genetic programming.
 
 * Installation
+
+** Requirements
+   * [[https://common-lisp.net/project/alexandria/][Alexandria]]
+   * [[http://lparallel.org][lparallel]]
+
+** Quicklisp
+Install with quicklisp by using the local projects feature.
+Alexandria and lparallel will be installed automatically if not already present.
 #+BEGIN_SRC sh
   cd ~/quicklisp/local-projects/
   git clone https://github.com/gambyte/genetic-programming.git
 #+END_SRC
+To use, start your favorite common-lisp implementation and:
+#+BEGIN_SRC lisp
+  (ql:quickload :genetic-programming)
+  (in-package :genetic-programming)
+#+END_SRC
+
+* Documentation
+
+** Examples
+
+*** Genetic programming
+First define a fitness function
+#+BEGIN_SRC lisp
+(defun difference-from-parabola (x)
+  (let ((test-function (first x))	;Extract the function
+	(avg 0))
+    (dotimes (i 10 (/ avg i))
+      (incf avg
+	    (eval			;Evaluate after splicing in the function
+	     `(let ((x (random 100)))	;Bind the variables used in the function
+		(- (abs			;bigger is fitter
+		    (-
+		     (+ (expt x 2) (* 5 x) 3) ;The target parabola
+		     ,test-function)))))))))
+#+END_SRC
+Next decide what functions, variables, and constants can be used as building blocks
+#+BEGIN_SRC lisp
+(defvar *functions* (make-functions :function-list '(+ - *) :arg-num-list '(2 2 2)))
+(defvar *terminals* '(x 1 10))
+#+END_SRC
+Initialize and run
+#+BEGIN_SRC lisp
+(gene-prog :operation :initialize :init-functions *functions* :init-terminals *terminals*)
+(gene-prog :operation :next-generations)
+(gene-prog :operation :best-of-generation)
+#+END_SRC
+Sample output:
+#+BEGIN_SRC lisp
+(+ (+ (+ X (+ 10 (+ X (+ (* (+ 1 (+ X X)) 10) (* X 10))))) 10) (- 10 X))
+#+END_SRC
+Care must be taken to choose good base functions, variables, and constants.
+Any lisp functions can be used, including user defined ones.
+Currently no simplification of the result is performed.
+Increasing the population size will typically give better results than increasing the number of generations.
+
+*** TODO Genetic Algorithm
+
+*** TODO Simulated Annealing
 
 * License
     This program is free software: you can redistribute it and/or modify
